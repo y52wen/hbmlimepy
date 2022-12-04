@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 from jax import numpy as jnp
 import numpy as np
-from scipy.interpolate import RegularGridInterpolator as _si_RegularGridInterpolator
-
+#from scipy.interpolate import RegularGridInterpolator as _si_RegularGridInterpolator
 
 class RegularGridInterpolator:
     # Based on SciPy's implementation which in turn is originally based on an
