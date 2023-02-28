@@ -91,7 +91,7 @@ class limepy_interpolate:
         s2_s = self.s2_p(jnp.transpose(ii[:2]))
         A_s = self.A_p(jnp.transpose(ii[:2]))
         
-        R_s = ii[3]/self.rhref
+        R_s = 10**ii[3]/self.rhref
         M_s = 10**ii[2]/self.Mref
 
         r_s = r/R_s

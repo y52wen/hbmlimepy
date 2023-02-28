@@ -105,15 +105,17 @@ class Bayesian_sampling:
         polynomial = components.sum(axis=0)-offset
         return polynomial
 
-    
-    def sampling(self,ndraws=2000,nburns=2000,chains=4):
+    #we have already adopted a new prior here
+    #should have used version control here
+    #My mistake for not using version control!
+    def sampling(self,ndraws=2000,nburns=2000,chains=4,target_accept=0.8):
         basic_model = pm.Model()
         Np = np.shape(self.vecx[0])[0]
         with basic_model:
             W0 = pm.Uniform("Phi0",lower=1.5,upper=14)
             g = pm.Uniform("g",lower=0.001,upper=self.boundary_func_aesara(W0))
             log10M = pm.Normal("log10M",mu=5.85,sigma=0.6)
-            rh = pm.TruncatedNormal("rh", mu=3.4,sigma=0.4,lower=0,upper=30)
+            log10rh = pm.TruncatedNormal("log10rh", mu=0.7,sigma=0.3,lower=0,upper=1.5)
 
             ac = pm.Uniform("ac",lower=self.xmin[0],upper=self.xmax[0])
             dc = pm.Uniform("dc",lower=self.xmin[1],upper=self.xmax[1])
@@ -135,12 +137,12 @@ class Bayesian_sampling:
             #star riadial velocity-GC center radial velocity
             vRtc = pm.Flat("vRtc",shape=Np) 
             
-            theta = at.concatenate([at.stack([W0,g,log10M,rh,ac,dc,pc,vac,vdc,vRc]),a,d,Rtc,va,vd,vRtc])
+            theta = at.concatenate([at.stack([W0,g,log10M,log10rh,ac,dc,pc,vac,vdc,vRc]),a,d,Rtc,va,vd,vRtc])
             pm.Potential("like", self.logl(theta))
 
-            idata = pm.sample(ndraws,tune=nburns,chains=chains,initvals={"pc":np.mean(self.vecx[2]),\
+            idata = pm.sample(ndraws,tune=nburns,chains=chains,cores=chains,initvals={"pc":np.mean(self.vecx[2]),\
                                                                   "Rtc":np.zeros(Np),"vRtc":np.zeros(Np)},\
-                             discard_tuned_samples=False,target_accept=0.8,jitter_max_retries=100)
+                            target_accept=target_accept,jitter_max_retries=100)
         return idata
          
 
