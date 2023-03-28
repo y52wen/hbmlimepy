@@ -1,6 +1,22 @@
 import aesara.tensor as at
 import numpy as np
 
+
+#new class simple flogLike
+class flogLike(at.Op):
+    itypes = [at.dvector]  
+    otypes = [at.dscalar]  
+
+    def __init__(self, loglike):
+        self.likelihood = loglike
+
+    def perform(self, node, inputs, outputs):
+        (theta,) = inputs 
+        logl = self.likelihood(theta)
+        outputs[0][0] = np.array(np.float64(logl))  
+
+
+        
 class flogLike_with_grad(at.Op):
     itypes = [at.dvector]  
     otypes = [at.dscalar] 

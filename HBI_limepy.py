@@ -6,6 +6,7 @@ from jax import numpy as jnp
 import jax
 from math import pi
 
+
 #With full data only estimate centers and structural parameters
 class log_df_full_data:
     def __init__(self,vecx,vecv,data_type='complete',error_obs=None):
@@ -13,6 +14,8 @@ class log_df_full_data:
         a = limepy_interpolate()
         self.my_df = a.my_df
         self.coefficient_boundary = a.coefficient_boundary
+        self.boundary_func = a.boundary_func
+        
         if data_type=='complete':
             self.vec_x = jnp.array(vecx)
             self.vec_v = jnp.array(vecv)
@@ -64,6 +67,72 @@ class log_df_full_data:
         return fr+p_l
 
 
+#For the naive fitting functions
+#We take the observed parallaxes (3D), then using the 2D results for fitting
+from limepy import limepy
+from scipy.optimize import fmin    
+    
+def W0_g_rh_2D_og_fit(vecx,b_f_n):
+    def og_to_xy(Sin):
+        rad_to_mas = 180/pi*60*60*10**3 
+        alpha,delta,p= Sin
+        alpha = alpha/rad_to_mas #rad
+        delta = delta/rad_to_mas #rad
+        R = 1000/p 
+        alphac = np.mean(alpha)
+        deltac = np.mean(delta)
+        #x = cos δ sin(α − αC )
+        nx = jnp.cos(delta)*jnp.sin(alpha-alphac)
+        x = R*nx
+        #y = sin δ cos δC − cos δ sin δC cos(α − αC )
+        ny = (jnp.sin(delta)*jnp.cos(deltac)\
+                -jnp.cos(delta)*jnp.sin(deltac)*jnp.cos(alpha-alphac))
+        y = R*ny
+        return jnp.array([x,y])
+    
+    #the likelihood for the 2D parameters
+    def minloglike(par, Rdat):
+        # par is an array with parameters: W, g, rh
+        m = limepy(par[0], par[1], M=1, rh=par[2], project=True) 
+        # Return the minus log likelihood, note that the model is normalised to M=1 above
+        return -sum(np.log(np.interp(Rdat, m.R, m.Sigma, right=1e-9)))
+    
+    pn = og_to_xy(jnp.array([vecx[0],vecx[1],vecx[2]]))
+    r = np.sqrt(pn[0]**2 + pn[1]**2)
+    param_array_try = np.stack(np.meshgrid(np.linspace(2,11.5,6),np.linspace(0.1,2.5,5),\
+                                               np.linspace(1,15,7)), -1).reshape(-1, 3)
+
+    #we can determine W0, g, and rh naively first to get the starting points
+    #here 9 to change how many valid results one want to search to find minimum fvalue
+    res_array = np.zeros((9,3))
+    result_array = np.zeros(9)
+    i,j = 0,0
+    while j<np.shape(res_array)[0] and i<len(param_array_try):
+        try:
+            index = np.random.randint(0,len(param_array_try))
+            x0 = param_array_try[index] # Starting values
+            r = np.sqrt(pn[0]**2 + pn[1]**2)  
+            result = fmin(minloglike, x0, args=(r,),full_output=True,disp=False)
+            res_hold, fval = result[0], result[1]
+            #we also include the prior cut here!
+            if fval>0 and b_f_n(res_hold[0])>res_hold[1] and res_hold[0]>1.5 and res_hold[0]<14:
+                res_array[j,:] = res_hold
+                result_array[j] = fval
+                j += 1
+        except (ValueError,IndexError):
+            pass
+        i += 1
+    if i==len(param_array_try):
+        print('simple 2D fit initialization fails')
+        return np.array([0])
+    else:
+        res = res_array[np.argmin(result_array),:] 
+        print("Fitted Initial Result: W0 = %5.3f"%(res[0]),"; g = %5.3f"%(res[1]),"; rh = %5.3f "%(res[2]))
+        return res    
+ 
+    
+   
+ 
 from external_likeilhood_aesara import flogLike_with_grad
 
 import aesara.tensor as at
@@ -77,11 +146,13 @@ class Bayesian_sampling:
 
         f_like = log_df_full_data(vecx,vecv,data_type=data_type,error_obs=error_obs)
         self.coefficient_boundary = f_like.coefficient_boundary
+        self.boundary_func_np = f_like.boundary_func
         
         #We need to compile the two functions before sending to pymc
         print(f_like.like(test_param))
         print(f_like.likegrad(test_param))
         self.logl = flogLike_with_grad(f_like.like,f_like.likegrad)
+        
         
         self.error = error_obs
         self.vecx = vecx
@@ -104,11 +175,11 @@ class Bayesian_sampling:
                                     non_sequences=x)
         polynomial = components.sum(axis=0)-offset
         return polynomial
-
+    
     #we have already adopted a new prior here
     #should have used version control here
     #My mistake for not using version control!
-    def sampling(self,ndraws=2000,nburns=2000,chains=4,target_accept=0.8):
+    def sampling(self,ndraws=2000,nburns=2000,chains=4,target_accept=0.8,no_extra_simple_fit=True,whether_rand_seed=False):
         basic_model = pm.Model()
         Np = np.shape(self.vecx[0])[0]
         with basic_model:
@@ -140,9 +211,59 @@ class Bayesian_sampling:
             theta = at.concatenate([at.stack([W0,g,log10M,log10rh,ac,dc,pc,vac,vdc,vRc]),a,d,Rtc,va,vd,vRtc])
             pm.Potential("like", self.logl(theta))
 
-            idata = pm.sample(ndraws,tune=nburns,chains=chains,cores=chains,initvals={"pc":np.mean(self.vecx[2]),\
-                                                                  "Rtc":np.zeros(Np),"vRtc":np.zeros(Np)},\
-                            target_accept=target_accept,jitter_max_retries=100)
+            #We need to add another safe
+            #If the more complicated initilialization scheme fails, just use the naive ones!
+            #We need to change this!
+            init_vals_simple = {"pc":np.mean(self.vecx[2]),"Rtc":np.zeros(Np),"vRtc":np.zeros(Np)}
+            
+            if no_extra_simple_fit:
+                idata = pm.sample(ndraws,tune=nburns,chains=chains,cores=chains,initvals=init_vals_simple,\
+                                  target_accept=target_accept,jitter_max_retries=1000)
+            else:
+                res = W0_g_rh_2D_og_fit(self.vecx,self.boundary_func_np)
+                if np.any(res==0):
+                    print('We default back to only setting pc, Rtc and vRtc')
+                    idata = pm.sample(ndraws,tune=nburns,chains=chains,cores=chains,initvals=init_vals_simple,\
+                                  target_accept=target_accept,jitter_max_retries=1000)
+                else:          
+                    init_vals_complex={"Phi0":res[0],"g":res[1],"log10rh":np.log10(res[2]),\
+                               "ac":np.mean(self.vecx[0]),"dc":np.mean(self.vecx[1]),"pc":np.mean(self.vecx[2]),\
+                               "vac":np.mean(self.vecv[0]),"vdc":np.mean(self.vecv[1]),\
+                               "a":self.vecx[0],"d":self.vecx[1],"Rtc":np.zeros(Np),\
+                               "va":self.vecv[0],"vd":self.vecv[1],"vRtc":np.zeros(Np)}
+                    try:
+                        if whether_rand_seed:
+                            seed = np.random.randint(0, 1000)
+                            rng = np.random.default_rng(seed)
+                            idata = pm.sample(ndraws,tune=nburns,chains=chains,cores=chains,initvals=init_vals_complex,\
+                                              target_accept=target_accept,jitter_max_retries=1000,random_seed=rng)
+                        else:
+                            idata = pm.sample(ndraws,tune=nburns,chains=chains,cores=chains,initvals=init_vals_complex,\
+                                              target_accept=target_accept,jitter_max_retries=1000)
+                    except (RuntimeError,ValueError):
+                        print('Using Complex Initial Result Sampling Fails. Try a different random seed for the complex initial')
+                        try:
+                            seed = np.random.randint(0, 100)
+                            rng = np.random.default_rng(seed)
+                            idata = pm.sample(ndraws,tune=nburns,chains=chains,cores=chains,initvals=init_vals_complex,\
+                                      target_accept=target_accept,jitter_max_retries=1000,random_seed=rng)
+                        except (RuntimeError,ValueError):
+                            print('Still falis. We go back to simpler initial sampling.')
+                            try:
+                                if whether_rand_seed:
+                                    seed = np.random.randint(0, 10000)
+                                    rng = np.random.default_rng(seed)
+                                    idata = pm.sample(ndraws,tune=nburns,chains=chains,cores=chains,initvals=init_vals_simple,\
+                                                target_accept=target_accept,jitter_max_retries=1000,random_seed=rng)
+                                else:  
+                                            idata = pm.sample(ndraws,tune=nburns,chains=chains,cores=chains,initvals=init_vals_simple,\
+                                                target_accept=target_accept,jitter_max_retries=1000) 
+                            except (RuntimeError,ValueError):
+                                print('Fails again. Try another random seed.')
+                                seed = np.random.randint(0, 10)
+                                rng = np.random.default_rng(seed)
+                                idata = pm.sample(ndraws,tune=nburns,chains=chains,cores=chains,initvals=init_vals_simple,\
+                                      target_accept=target_accept,jitter_max_retries=1000,random_seed=rng)
         return idata
          
 
