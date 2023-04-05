@@ -85,7 +85,10 @@ class limepy_interpolate:
         phi_3d = jnp.array([container[key] for key in container])
         self.phi_p = RegularGridInterpolator((self.W_a, self.g_a, self.r_a), phi_3d)
         
-    #sum of all points in the distribution function
+    #sum of all points in the distribution function, normalized by mass
+    #this is in fact not the df, but the likelihood of df
+    #This is the one used in MCMC sampling
+    #Should change the name aftewards!
     def my_df(self,r,v,ii):
         rt_s = self.rt_p(jnp.transpose(ii[:2]))
         s2_s = self.s2_p(jnp.transpose(ii[:2]))
@@ -115,3 +118,34 @@ class limepy_interpolate:
             return jax.lax.cond(jnp.all(v2<vesc2),sum_log_like,float_inf,ii,E,A)
 
         return jax.lax.cond(jnp.all(r_s<rt_s),df_all_r,float_inf,ii,r_s,v) 
+    
+    #return just df, true df
+    def my_df_func(self,r,v,ii):
+        rt_s = self.rt_p(jnp.transpose(ii[:2]))
+        s2_s = self.s2_p(jnp.transpose(ii[:2]))
+        A_s = self.A_p(jnp.transpose(ii[:2]))
+        
+        R_s = 10**ii[3]/self.rhref
+        M_s = 10**ii[2]/self.Mref
+
+        r_s = r/R_s
+        v2_s = self.G_s*M_s/R_s
+        s2 = s2_s*v2_s 
+        A = A_s*M_s/(v2_s**1.5*R_s**3)
+        
+        def float_inf(ii,a,b):
+            return a
+        
+        def like_func(ii,E,A):
+            return jnp.exp(E)*jax.scipy.special.gammainc(ii[1],E)*A
+        
+        def df_all_r(ii,r_s,v):
+            phi_s = self.phi_p(jnp.stack([jnp.ones_like(r_s)*ii[0],\
+                                        jnp.ones_like(r_s)*ii[1],r_s],axis=-1))
+            phi = phi_s*v2_s
+            vesc2 = 2.0*phi
+            v2 = v**2
+            E = (phi-0.5*v2)/s2
+            return jax.lax.cond(jnp.all(v2<vesc2),like_func,float_inf,ii,E,A)
+
+        return jax.lax.cond(jnp.all(r_s<rt_s),df_all_r,float_inf,ii,r_s,v)

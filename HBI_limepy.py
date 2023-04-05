@@ -64,6 +64,7 @@ class log_df_full_data:
         
         #Gaussian likelihood on individual parallax! 
         p_l = -jnp.sum(jnp.log(self.sigma_p*(2*pi)**(1/2))+1/2*((self.p_obs-p_f)/self.sigma_p)**2)
+        #This will then add the future likelihood on virial velocity!
         return fr+p_l
 
 
@@ -190,7 +191,9 @@ class Bayesian_sampling:
 
             ac = pm.Uniform("ac",lower=self.xmin[0],upper=self.xmax[0])
             dc = pm.Uniform("dc",lower=self.xmin[1],upper=self.xmax[1])
-            pc  = pm.Uniform("pc",lower=self.xmin[2],upper=self.xmax[2])
+            #Here we need to make sure this is positive!!
+            #Here is the modification on HBI!
+            pc  = pm.Uniform("pc",lower=max(0.001,self.xmin[2]),upper=self.xmax[2])
 
             vac = pm.Uniform("vac",lower=self.vmin[0],upper=self.vmax[0])
             vdc = pm.Uniform("vdc",lower=self.vmin[1],upper=self.vmax[1])

@@ -46,3 +46,6 @@ def StC(Sin):
     vy = vR*jnp.sin(alpha_r)*jnp.cos(delta_r)+mua*jnp.cos(alpha_r)-mud*jnp.sin(alpha_r)*jnp.sin(delta_r)
     vz = vR*jnp.sin(delta_r)+mud*jnp.cos(delta_r)
     return jnp.array([x,y,z,vx,vy,vz])
+
+
+
