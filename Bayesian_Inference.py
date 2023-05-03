@@ -1,5 +1,5 @@
-#This package uses perfect data for inference
-#And we only infer four parameters here
+# This package uses perfect data for inference
+# And we only infer four parameters here
 
 import pymc as pm
 from limepy import limepy, sample
@@ -29,8 +29,8 @@ class log_limepy_df_with_data:
     #using interpolation df
     def log_df_interpolate_limepy(self,ii):
         return self.my_df(self.r,self.v,ii[:4])
-    
-    
+
+
 class Bayesian_limepy_sampling:
     def __init__(self,r,v,test_param=None,whether_interpolate=True):        
         f_like = log_limepy_df_with_data(r,v)
