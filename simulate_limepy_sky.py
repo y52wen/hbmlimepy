@@ -5,8 +5,8 @@ from jax import numpy as jnp
 from limepy import limepy, sample
 from math import pi
 
-#only contains numpy array here
-#Here this is simply the Cartesian version
+#center param only takes sky values!
+#center param with a,d (in radian),R(in pc),vx,vy,vz(km/s)
 def simulate_limepy(struct_param,center_param,Np=1000,data_type='ski',\
                     include_error=False,error=None,seed_limepy=199,seed_error=None):
     
@@ -40,7 +40,7 @@ def simulate_limepy(struct_param,center_param,Np=1000,data_type='ski',\
         x_array,y_array,z_array = ic.x+phase_car_c[0],ic.y+phase_car_c[1],ic.z+phase_car_c[2]
         vx_array,vy_array,vz_array = ic.vx+phase_car_c[3],ic.vy+phase_car_c[4],ic.vz+phase_car_c[5]
         
-        sky_array = np.array(CtS(jnp.array([x_array,y_array,z_array,vx_array,vy_array,vz_array])))                   
+        sky_array = np.array(CtS(jnp.array([x_array,y_array,z_array,vx_array,vy_array,vz_array])))                         
         if include_error:
             if not(seed_error==None):
                 np.random.seed(seed_error)

@@ -21,7 +21,6 @@ def CtS(Cin):
 
     #vx,vy,vz km/s
     mud = 0-1/(1+(jnp.sqrt(x**2+y**2)/z)**2)*((x*vx+y*vy)/jnp.sqrt(x**2+y**2)*z-jnp.sqrt(x**2+y**2)*vz)/z**2
-           #km/(pc*s)
     mua = 1/(1+(y/x)**2)*(vy*x-vx*y)/x**2*jnp.cos(delta_r) #km/(pc*s)
 
     va = mua/pc_to_km*rad_to_mas*year_to_s #mas/year

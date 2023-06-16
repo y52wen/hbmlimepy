@@ -29,6 +29,15 @@ class log_df_full_data:
             else:
                 self.p_obs = vecx[2]
                 self.sigma_p = error_obs[2]
+                self.sigma_vR = jnp.array(error_obs[5])
+                if jnp.all(self.sigma_vR==0):
+                    self.vR_obs = jnp.zeros(len(vecx[2]))
+                    #This is just to make sure the gradient still works in jnp.where!
+                    #It does not really impact anything...
+                    self.sigma_vR = 0.1
+                else:
+                    #note that the ones without measurements need to be set to 0 here!
+                    self.vR_obs = jnp.array(vecv[2])
                 self.like = jax.jit(self.log_df_sky)
                 self.likegrad = jax.jit(jax.grad(self.log_df_sky))
 
@@ -63,16 +72,18 @@ class log_df_full_data:
         fr = self.my_df(r,v,ii[:4])+jnp.sum(jnp.log(jnp.abs((ii[10+2*Np:10+3*Np]+1000/ii[6])**4*jnp.cos(ii[10+Np:10+2*Np]))))
         
         #Gaussian likelihood on individual parallax! 
-        p_l = -jnp.sum(jnp.log(self.sigma_p*(2*pi)**(1/2))+1/2*((self.p_obs-p_f)/self.sigma_p)**2)
+        p_l = -jnp.sum(jnp.log(self.sigma_p*(2*pi)**(1/2))+1/2*((self.p_obs-p_f)/self.sigma_p)**2)      
         #This will then add the future likelihood on virial velocity!
-        return fr+p_l
+        #we can now handle data with or without missing velocities!
+        vR_l = -jnp.sum(jnp.where(self.vR_obs==0,0,jnp.log(self.sigma_vR*(2*pi)**(1/2))+1/2*((self.vR_obs-(ii[10+5*Np:10+6*Np]+ii[9]))/self.sigma_vR)**2))
+        return fr+p_l+vR_l
 
 
 #For the naive fitting functions
 #We take the observed parallaxes (3D), then using the 2D results for fitting
 from limepy import limepy
 from scipy.optimize import fmin    
-    
+
 def W0_g_rh_2D_og_fit(vecx,b_f_n):
     def og_to_xy(Sin):
         rad_to_mas = 180/pi*60*60*10**3 
@@ -130,10 +141,10 @@ def W0_g_rh_2D_og_fit(vecx,b_f_n):
         res = res_array[np.argmin(result_array),:] 
         print("Fitted Initial Result: W0 = %5.3f"%(res[0]),"; g = %5.3f"%(res[1]),"; rh = %5.3f "%(res[2]))
         return res    
- 
+
     
-   
- 
+
+
 from external_likeilhood_aesara import flogLike_with_grad
 
 import aesara.tensor as at
@@ -142,6 +153,7 @@ import arviz as az
 import pymc as pm
 import numpy as np
 
+#we will need a version to support missing data!
 class Bayesian_sampling:
     def __init__(self,vecx,vecv,test_param,data_type='complete',error_obs=None):
 
@@ -268,5 +280,5 @@ class Bayesian_sampling:
                                 idata = pm.sample(ndraws,tune=nburns,chains=chains,cores=chains,initvals=init_vals_simple,\
                                       target_accept=target_accept,jitter_max_retries=1000,random_seed=rng)
         return idata
-         
+
 
