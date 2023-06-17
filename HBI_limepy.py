@@ -72,7 +72,7 @@ class log_df_full_data:
         fr = self.my_df(r,v,ii[:4])+jnp.sum(jnp.log(jnp.abs((ii[10+2*Np:10+3*Np]+1000/ii[6])**4*jnp.cos(ii[10+Np:10+2*Np]))))
         
         #Gaussian likelihood on individual parallax! 
-        p_l = -jnp.sum(jnp.log(self.sigma_p*(2*pi)**(1/2))+1/2*((self.p_obs-p_f)/self.sigma_p)**2)      
+        p_l = -jnp.sum(jnp.log(self.sigma_p*(2*pi)**(1/2))+1/2*((self.p_obs-p_f)/self.sigma_p)**2)
         #This will then add the future likelihood on virial velocity!
         #we can now handle data with or without missing velocities!
         vR_l = -jnp.sum(jnp.where(self.vR_obs==0,0,jnp.log(self.sigma_vR*(2*pi)**(1/2))+1/2*((self.vR_obs-(ii[10+5*Np:10+6*Np]+ii[9]))/self.sigma_vR)**2))
@@ -192,7 +192,7 @@ class Bayesian_sampling:
     #we have already adopted a new prior here
     #should have used version control here
     #My mistake for not using version control!
-    def sampling(self,ndraws=2000,nburns=2000,chains=4,target_accept=0.8,no_extra_simple_fit=True,whether_rand_seed=False):
+    def sampling(self,ndraws=2000,nburns=2000,chains=4,target_accept=0.8,no_init=True,whether_rand_seed=False):
         basic_model = pm.Model()
         Np = np.shape(self.vecx[0])[0]
         with basic_model:
@@ -231,7 +231,7 @@ class Bayesian_sampling:
             #We need to change this!
             init_vals_simple = {"pc":np.mean(self.vecx[2]),"Rtc":np.zeros(Np),"vRtc":np.zeros(Np)}
             
-            if no_extra_simple_fit:
+            if no_init:
                 idata = pm.sample(ndraws,tune=nburns,chains=chains,cores=chains,initvals=init_vals_simple,\
                                   target_accept=target_accept,jitter_max_retries=1000)
             else:

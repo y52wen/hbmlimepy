@@ -85,10 +85,9 @@ class limepy_interpolate:
         phi_3d = jnp.array([container[key] for key in container])
         self.phi_p = RegularGridInterpolator((self.W_a, self.g_a, self.r_a), phi_3d)
         
-    #sum of all points in the distribution function, normalized by mass
-    #this is in fact not the df, but the likelihood of df
-    #This is the one used in MCMC sampling
-    #Should change the name aftewards!
+
+    #This is the likelihood used in MCMC sampling
+    #we sum over all points (ri, vi)
     def my_df(self,r,v,ii):
         rt_s = self.rt_p(jnp.transpose(ii[:2]))
         s2_s = self.s2_p(jnp.transpose(ii[:2]))
@@ -119,7 +118,7 @@ class limepy_interpolate:
 
         return jax.lax.cond(jnp.all(r_s<rt_s),df_all_r,float_inf,ii,r_s,v) 
     
-    #return just df, true df
+    #true df (return as a function of (ri,vi))
     def my_df_func(self,r,v,ii):
         rt_s = self.rt_p(jnp.transpose(ii[:2]))
         s2_s = self.s2_p(jnp.transpose(ii[:2]))

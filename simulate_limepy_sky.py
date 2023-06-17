@@ -5,8 +5,13 @@ from jax import numpy as jnp
 from limepy import limepy, sample
 from math import pi
 
-#center param only takes sky values!
-#center param with a,d (in radian),R(in pc),vx,vy,vz(km/s)
+# center param only takes sky values!
+# center param with a,d (in radian),R(in pc), va (mas/year),vd (mas/year), vr (km/s)
+
+# we can choose to either include measurement errors or not with include_error
+
+#seed_limepy used to simulate limepy df
+#seed_error used to generate measurement errors
 def simulate_limepy(struct_param,center_param,Np=1000,data_type='ski',\
                     include_error=False,error=None,seed_limepy=199,seed_error=None):
     
@@ -20,8 +25,7 @@ def simulate_limepy(struct_param,center_param,Np=1000,data_type='ski',\
         vecv_np = np.array([ic.vx+vxtrue,ic.vy+vytrue,ic.vz+vztrue])
         return vecx_np,vecv_np
     else:
-        #center param with a,d (in radian),R(in pc),vx,vy,vz(km/s)
-        #This input format probably needs some change
+        #center param with a,d (in radian),R(in pc),va (mas/year),vd (mas/year), vr (km/s)
         rad_to_mas = 180/pi*60*60*10**3
         ac = center_param[0]*rad_to_mas
         dc = center_param[1]*rad_to_mas
@@ -29,13 +33,6 @@ def simulate_limepy(struct_param,center_param,Np=1000,data_type='ski',\
         
         phase_sky_c = np.array([ac,dc,pc,center_param[3],center_param[4],center_param[5]])
         phase_car_c = np.array(StC(jnp.array(phase_sky_c)))
-        
-        #np.array(CtS(jnp.array(phase_car_c)))
-        #po_c = StC(jnp.array([ac,dc,pc,1,1,1]))
-        #cartesian center: in pc and km/s
-        #phase_car_c = np.array([po_c[0],po_c[1],po_c[2],center_param[3],center_param[4],center_param[5]])
-        #sky center: in mas, mas/year and km/s
-        #phase_sky_c = np.array(CtS(jnp.array(phase_car_c)))
                                
         x_array,y_array,z_array = ic.x+phase_car_c[0],ic.y+phase_car_c[1],ic.z+phase_car_c[2]
         vx_array,vy_array,vz_array = ic.vx+phase_car_c[3],ic.vy+phase_car_c[4],ic.vz+phase_car_c[5]

@@ -1,8 +1,9 @@
-# This package uses perfect data for inference
-# And we only infer four parameters here
+# This package uses perfect data (Cartesian) for inference and we only infer four parameters here.
+#
+# This is the basic non-hierachical inference.
 
 import pymc as pm
-from limepy import limepy, sample
+from limepy import limepy
 import aesara.tensor as at
 import aesara
 import jax
